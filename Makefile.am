@@ -6,6 +6,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 
 EXTRA_DIST = README.md autogen.sh libsamplerate.spec.in samplerate.pc.in  \
     Octave/generate_filter.m Octave/make_filter.m Octave/measure_filter.m \
+    Octave/make_sinc_table.m Octave/generate_tables.m \
     Octave/Readme.md Win32/libsamplerate-0.def
 
 pkgconfig_DATA = samplerate.pc
@@ -30,7 +31,7 @@ CLEANFILES = src/src_sinc.s
 # MinGW requires -no-undefined if a DLL is to be built.
 src_libsamplerate_la_LDFLAGS = -no-undefined -version-info $(SHARED_VERSION_INFO) $(SHLIB_VERSION_ARG)
 src_libsamplerate_la_SOURCES = src/samplerate.c src/src_sinc.c src/src_zoh.c src/src_linear.c \
-	src/common.h src/fastest_coeffs.h src/mid_qual_coeffs.h src/high_qual_coeffs.h
+	src/src_sinc.h src/common.h src/fastest_coeffs.h src/mid_qual_coeffs.h src/high_qual_coeffs.h
 
 #-------------------------------------------------------------------------------
 # An extra check for bad asm.

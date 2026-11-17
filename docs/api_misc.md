@@ -43,15 +43,15 @@ The details of these converters are as follows:
 
 - **SRC_SINC_BEST_QUALITY** - This is a bandlimited interpolator derived from
   the mathematical **sinc** function and this is the highest quality sinc based
-  converter, providing a worst case Signal-to-Noise Ratio (SNR) of 97 decibels
-  (dB) at a bandwidth of 97%. All three SRC_SINC_* converters are based on the
+  converter, providing a worst case Signal-to-Noise Ratio (SNR) of 147 decibels
+  (dB) at a bandwidth of 96%. All three SRC_SINC_* converters are based on the
   techniques of [Julius O. Smith](http://ccrma.stanford.edu/~jos/resample/)
   although this code was developed independently.
 - **SRC_SINC_MEDIUM_QUALITY** - This is another bandlimited interpolator much
-  like the previous one. It has an SNR of 97dB and a bandwidth of 90%. The speed
+  like the previous one. It has an SNR of 126dB and a bandwidth of 90%. The speed
   of the conversion is much faster than the previous one.
 - **SRC_SINC_FASTEST** - This is the fastest bandlimited interpolator and has an
-  SNR of 97dB and a bandwidth of 80%.
+  SNR of 111dB and a bandwidth of 80%.
 - **SRC_ZERO_ORDER_HOLD** - A Zero Order Hold converter (interpolated value is
   equal to the last value). The quality is poor but the conversion speed is
   blindlingly fast. Be aware that this interpolator is not bandlimited, and the 
