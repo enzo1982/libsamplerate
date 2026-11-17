@@ -414,9 +414,133 @@ sinc_calc_output_c (SINC_FILTER *filter, int channels, double input_index, doubl
 {	sinc_calc_output (&sinc_kernel_c, filter, channels, input_index, scale, output) ;
 } /* sinc_calc_output_c */
 
+/*
+**	Choosing the version of the inner loops.
+**
+**	The SIMD versions are only used where they were built for their instruction
+**	set (see src_sinc.h) and the CPU supports it. Where this file is built for
+**	an instruction set, i.e. all of the code is, it is taken to be supported.
+**	Otherwise it takes some way of asking the CPU to use it.
+**
+**	SINC_MAX_SIMD can be defined as 0 (portable C version only) or 1 (nothing
+**	beyond SSE2 on x86) to restrict the choice.
+*/
+
+#ifndef SINC_MAX_SIMD
+#define	SINC_MAX_SIMD			2
+#endif
+
+#if SINC_MAX_SIMD > 0 && (defined (__x86_64__) || defined (__i386__) || defined (_M_X64) || defined (_M_IX86)) && !defined (_M_ARM64EC)
+
+#if defined (_MSC_VER)
+#	include <intrin.h>
+#	include <immintrin.h>
+#	define SINC_X86_CPU_DETECTION
+#elif defined (__clang__)
+#	if __has_builtin (__builtin_cpu_supports)
+#		define SINC_X86_CPU_DETECTION
+#	endif
+#elif defined (__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+#	define SINC_X86_CPU_DETECTION
+#endif
+
+/*
+**	Find out which of the instruction sets SSE2 (level 1) and AVX2 (level 2)
+**	can be used.
+*/
+static int
+sinc_x86_level (void)
+{	int level = 0 ;
+
+#if defined (__AVX2__)
+	level = 2 ;
+#elif defined (__SSE2__) || defined (_M_X64) || (defined (_M_IX86_FP) && _M_IX86_FP >= 2)
+	level = 1 ;
+#endif
+
+#if defined (SINC_X86_CPU_DETECTION) && defined (_MSC_VER)
+	{	int info [4] ;
+
+		__cpuid (info, 0) ;
+		if (info [0] >= 1)
+		{	const int max_leaf = info [0] ;
+
+			__cpuid (info, 1) ;
+			if ((info [3] & (1 << 26)) && level < 1)
+				level = 1 ;
+
+			/* AVX needs the operating system to save the upper halves of the YMM registers. */
+			if (max_leaf >= 7 && (info [2] & (1 << 27)) && (info [2] & (1 << 28)) && (_xgetbv (0) & 6) == 6)
+			{	__cpuidex (info, 7, 0) ;
+				if (info [1] & (1 << 5))
+					level = 2 ;
+				} ;
+			} ;
+		} ;
+#elif defined (SINC_X86_CPU_DETECTION)
+#	if !defined (__clang__) || __has_builtin (__builtin_cpu_init)
+	__builtin_cpu_init () ;
+#	endif
+
+	if (__builtin_cpu_supports ("avx2"))
+		level = 2 ;
+	else if (__builtin_cpu_supports ("sse2") && level < 1)
+		level = 1 ;
+#endif
+
+	return level ;
+} /* sinc_x86_level */
+
+#endif
+
+#if SINC_MAX_SIMD > 0 && defined (__riscv)
+
+#if !defined (__riscv_v) && defined (__linux__)
+#	include <sys/auxv.h>
+#endif
+
+/*
+**	Find out if the CPU (and the kernel) supports the vector extension.
+*/
+static int
+sinc_riscv_has_vector (void)
+{
+#if defined (__riscv_v)
+	return 1 ;
+#elif defined (__linux__)
+	return (getauxval (AT_HWCAP) & (1UL << ('v' - 'a'))) != 0 ;
+#else
+	return 0 ;
+#endif
+} /* sinc_riscv_has_vector */
+
+#endif
+
 static sinc_calc_output_t
 sinc_choose_calc_output (void)
-{	return sinc_calc_output_c ;
+{
+#if SINC_MAX_SIMD > 0
+#if (defined (__x86_64__) || defined (__i386__) || defined (_M_X64) || defined (_M_IX86)) && !defined (_M_ARM64EC)
+	const int level = sinc_x86_level () ;
+
+	if (SINC_MAX_SIMD >= 2 && level >= 2 && sinc_calc_output_avx2 != NULL)
+		return sinc_calc_output_avx2 ;
+
+	if (level >= 1 && sinc_calc_output_sse2 != NULL)
+		return sinc_calc_output_sse2 ;
+#endif
+
+#if defined (__riscv)
+	if (sinc_calc_output_rvv != NULL && sinc_riscv_has_vector ())
+		return sinc_calc_output_rvv ;
+#endif
+
+	/* The NEON version only gets built for 64 bit ARM CPUs, which all have NEON. */
+	if (sinc_calc_output_neon != NULL)
+		return sinc_calc_output_neon ;
+#endif
+
+	return sinc_calc_output_c ;
 } /* sinc_choose_calc_output */
 
 static SRC_ERROR

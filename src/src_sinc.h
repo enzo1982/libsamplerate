@@ -7,20 +7,31 @@
 */
 
 /*
-**	The inner workings of the sinc converters : the filter state and the
-**	calculation of one output frame on top of a small set of primitives.
+**	Things shared by src_sinc.c and the files with the SIMD versions of its
+**	inner loops (src_sinc_sse2.c, src_sinc_avx2.c, src_sinc_neon.c and
+**	src_sinc_rvv.c).
 */
 
 #ifndef SRC_SINC_H_INCLUDED
 #define SRC_SINC_H_INCLUDED
 
 #include <assert.h>
+#include <stddef.h>
 #include <math.h>
 
 #include "common.h"
 
 /* Number of filter coefficients generated and applied in one go (multiple of 8). */
 #define	COEFF_CHUNK				512
+
+/*
+** Besides the portable C version of the inner loops in src_sinc.c there are
+** SIMD versions in files of their own : src_sinc_sse2.c and src_sinc_avx2.c
+** for x86, src_sinc_neon.c for 64 bit ARM and src_sinc_rvv.c for the RISC-V
+** vector extension. The build system compiles each of them for its instruction
+** set, if the compiler supports that. Which one gets used is decided at run
+** time (see sinc_choose_calc_output in src_sinc.c).
+*/
 
 #if defined (__GNUC__) || defined (__clang__)
 #	define SINC_ALWAYS_INLINE	inline __attribute__ ((always_inline))
@@ -69,7 +80,7 @@ struct SINC_FILTER_tag
 
 	float	*buffer ;
 
-	/* The function calculating the output frames. */
+	/* The version of the calculation chosen for the CPU we are running on. */
 	sinc_calc_output_t calc_output ;
 } ;
 
@@ -80,8 +91,9 @@ struct SINC_FILTER_tag
 **	the coefficient tables using 4 point (cubic) Lagrange interpolation and are
 **	then applied to the input data as a plain FIR filter.
 **
-**	This is built from four primitives, of which there is a portable C version
-**	in src_sinc.c.
+**	This is built from four primitives which exist in a portable C version (in
+**	src_sinc.c), in SSE2 and AVX2 versions for x86 CPUs, in a NEON version for
+**	64 bit ARM CPUs and in a version for the RISC-V vector extension.
 */
 
 typedef struct
@@ -121,8 +133,8 @@ sinc_lagrange_weights (double x, double *weights)
 } /* sinc_lagrange_weights */
 
 /*
-**	The code on top of the primitives. These functions get inlined into
-**	sinc_calc_output_c, where the kernel is a compile time constant.
+**	The code common to all versions. These functions get inlined into the
+**	sinc_calc_output_* functions, where the kernel is a compile time constant.
 */
 
 /*
@@ -220,5 +232,14 @@ sinc_calc_output (const SINC_KERNEL *kernel, SINC_FILTER *filter, int channels, 
 	for (int ch = 0 ; ch < channels ; ch++)
 		output [ch] = (float) (scale * acc [ch]) ;
 } /* sinc_calc_output */
+
+/*
+**	The versions of sinc_calc_output for the SIMD kernels. Each one is NULL if
+**	its file was not built for the respective instruction set.
+*/
+extern const sinc_calc_output_t sinc_calc_output_sse2 ;
+extern const sinc_calc_output_t sinc_calc_output_avx2 ;
+extern const sinc_calc_output_t sinc_calc_output_neon ;
+extern const sinc_calc_output_t sinc_calc_output_rvv ;
 
 #endif	/* SRC_SINC_H_INCLUDED */
