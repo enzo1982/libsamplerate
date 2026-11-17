@@ -319,6 +319,63 @@ AS_IF([test "x$enable_werror" = "xyes"], [
 AX_APPEND_COMPILE_FLAGS([-W -Wstrict-prototypes -Wmissing-prototypes -Wall -Waggregate-return -Wcast-align -Wcast-qual -Wnested-externs -Wshadow -Wpointer-arith], [CFLAGS])
 
 dnl ====================================================================================
+dnl  Compiler flags for the SIMD versions of the inner loops of the sinc converters.
+dnl  They are built for their instruction sets using flags for their files only.
+dnl  Which version gets used is decided at run time.
+
+dnl SINC_SIMD_FLAGS(NAME, TEST-PROGRAM, CANDIDATE-FLAGS)
+dnl Find the flags needed to compile TEST-PROGRAM, trying no flags first, and put
+dnl them into SINC_<NAME>_CFLAGS.
+AC_DEFUN([SINC_SIMD_FLAGS], [
+		AC_MSG_CHECKING([for the compiler flags for the $1 version of the sinc converters])
+		sinc_simd_found=no
+		sinc_simd_flags=""
+		sinc_simd_saved_CFLAGS="$CFLAGS"
+		for sinc_simd_try in none $3 ; do
+			AS_IF([test "x$sinc_simd_try" = "xnone"], [sinc_simd_try=""])
+			CFLAGS="$sinc_simd_saved_CFLAGS $sinc_simd_try"
+			AC_COMPILE_IFELSE([AC_LANG_SOURCE([$2])], [
+					sinc_simd_found=yes
+					sinc_simd_flags="$sinc_simd_try"
+					break
+				])
+		done
+		CFLAGS="$sinc_simd_saved_CFLAGS"
+		AS_IF([test "x$sinc_simd_found" = "xno"], [
+				AC_MSG_RESULT([not available])
+			], [test "x$sinc_simd_flags" = "x"], [
+				AC_MSG_RESULT([none needed])
+			], [
+				AC_MSG_RESULT([$sinc_simd_flags])
+			])
+		AC_SUBST([SINC_$1_CFLAGS], [$sinc_simd_flags])
+	])
+
+SINC_SIMD_FLAGS([SSE2], [[
+#if !(defined (__SSE2__) || defined (_M_X64) || (defined (_M_IX86_FP) && _M_IX86_FP >= 2)) || defined (_M_ARM64EC)
+#error SSE2 not enabled
+#endif
+#include <emmintrin.h>
+int main (void) { __m128d a = _mm_set1_pd (1.0) ; return (int) _mm_cvtsd_f64 (_mm_add_pd (a, a)) ; }
+]], [-msse2])
+
+SINC_SIMD_FLAGS([AVX2], [[
+#if !defined (__AVX2__) || defined (_M_ARM64EC)
+#error AVX2 not enabled
+#endif
+#include <immintrin.h>
+int main (void) { __m256i a = _mm256_set1_epi32 (1) ; a = _mm256_add_epi64 (a, a) ; return _mm_cvtsi128_si32 (_mm256_castsi256_si128 (a)) ; }
+]], [-mavx2])
+
+SINC_SIMD_FLAGS([RVV], [[
+#if !defined (__riscv_v) || !defined (__riscv_v_intrinsic) || __riscv_v_intrinsic < 12000
+#error RVV 1.0 intrinsics not available
+#endif
+#include <riscv_vector.h>
+int main (void) { size_t vl = __riscv_vsetvl_e32m1 (4) ; return (int) __riscv_vfmv_f_s_f32m1_f32 (__riscv_vfmv_v_f_f32m1 (1.0f, vl)) ; }
+]], [-march=rv64gcv])
+
+dnl ====================================================================================
 dnl  Set OS-specific audio-out flags.
 
 AUDIO_CFLAGS=""

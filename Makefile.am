@@ -31,7 +31,19 @@ CLEANFILES = src/src_sinc.s
 # MinGW requires -no-undefined if a DLL is to be built.
 src_libsamplerate_la_LDFLAGS = -no-undefined -version-info $(SHARED_VERSION_INFO) $(SHLIB_VERSION_ARG)
 src_libsamplerate_la_SOURCES = src/samplerate.c src/src_sinc.c src/src_zoh.c src/src_linear.c \
-	src/src_sinc.h src/common.h src/fastest_coeffs.h src/mid_qual_coeffs.h src/high_qual_coeffs.h
+	src/src_sinc_neon.c src/src_sinc.h \
+	src/common.h src/fastest_coeffs.h src/mid_qual_coeffs.h src/high_qual_coeffs.h
+src_libsamplerate_la_LIBADD = src/libsinc_sse2.la src/libsinc_avx2.la src/libsinc_rvv.la
+
+# The SIMD versions of the inner loops of the sinc converters which need compiler
+# flags of their own (see configure.ac).
+noinst_LTLIBRARIES = src/libsinc_sse2.la src/libsinc_avx2.la src/libsinc_rvv.la
+src_libsinc_sse2_la_SOURCES = src/src_sinc_sse2.c src/src_sinc.h
+src_libsinc_sse2_la_CFLAGS = $(AM_CFLAGS) $(SINC_SSE2_CFLAGS)
+src_libsinc_avx2_la_SOURCES = src/src_sinc_avx2.c src/src_sinc.h
+src_libsinc_avx2_la_CFLAGS = $(AM_CFLAGS) $(SINC_AVX2_CFLAGS)
+src_libsinc_rvv_la_SOURCES = src/src_sinc_rvv.c src/src_sinc.h
+src_libsinc_rvv_la_CFLAGS = $(AM_CFLAGS) $(SINC_RVV_CFLAGS)
 
 #-------------------------------------------------------------------------------
 # An extra check for bad asm.
