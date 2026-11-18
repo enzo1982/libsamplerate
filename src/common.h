@@ -14,7 +14,8 @@
 #include <stdbool.h>
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64)
+/* MSVC also defines _M_X64 for ARM64EC, which only offers emulated SSE2 intrinsics. */
+#if (defined(__x86_64__) || defined(_M_X64)) && !defined(_M_ARM64EC)
 #   define HAVE_SSE2_INTRINSICS
 #elif defined(ENABLE_SSE2_LRINT) && (defined(_M_IX86) || defined(__i386__))
 #   if defined(_MSC_VER)
